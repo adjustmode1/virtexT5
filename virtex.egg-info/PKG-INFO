@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: virtex
+Version: 1.4.0
+Summary: VirTex: Learning Visual Representations with Textual Annotations
+Author: Karan Desai and Justin Johnson
+License: MIT
+Requires-Python: >=3.8
+License-File: LICENSE

@@ -1,0 +1,12 @@
+albumentations>=1.0
+Cython>=0.25
+future==0.18.0
+loguru>=0.3
+lvis>=0.5
+numpy>=1.17
+opencv-python>=4.2.0
+scikit-learn>=1.0
+sentencepiece>=0.1.90
+torch>=1.9
+torchvision>=0.10
+tqdm>=4.50.0

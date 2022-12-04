@@ -1,0 +1,70 @@
+# -----------------------------------------------------------------------------
+# Base config: VirTex pretraining for our "base" bicaptioning model:
+# ResNet-50 + (L = 1, H = 1024) transformer trained for 500K iterations.
+# -----------------------------------------------------------------------------
+RANDOM_SEED: 0
+AMP: true
+CUDNN_BENCHMARK: true
+CUDNN_DETERMINISTIC: false
+
+DATA:
+  ROOT: "/content/virtex/datasets/coco"
+  TOKENIZER_MODEL: "/content/virtex/datasets/coco/vocab/vocabulary.pkl"
+  VOCAB_SIZE: 10000
+  UNK_INDEX: 0 # trong vit 0
+  PAD_INDEX: 1 # 
+  SOS_INDEX: 2 # trong vit là 2
+  EOS_INDEX: 3 # trong vit là 3
+  MASK_INDEX: 4
+
+  IMAGE_CROP_SIZE: 224
+  MAX_CAPTION_LENGTH: 64
+
+  IMAGE_TRANSFORM_TRAIN:
+    - "random_resized_crop"
+    - "horizontal_flip"
+    - "color_jitter"
+    - "normalize"
+
+  IMAGE_TRANSFORM_VAL:
+    - "smallest_resize"
+    - "center_crop"
+    - "normalize"
+
+MODEL:
+  NAME: "virtex"
+
+  VISUAL:
+    NAME: "torchvision::resnet50"
+    PRETRAINED: false
+    FROZEN: false
+
+  TEXTUAL:
+    NAME: "transdec_postnorm::L12_H768_A12_F2048" # transdec_postnorm::L1_H256_A16_F4096
+    DROPOUT: 0.1
+
+  DECODER:
+    NAME: "beam_search"
+    BEAM_SIZE: 7
+
+OPTIM:
+  OPTIMIZER_NAME: "sgd"
+  SGD_MOMENTUM: 0.9
+  WEIGHT_DECAY: 0.0001
+
+  LOOKAHEAD:
+    USE: true
+    ALPHA: 0.5
+    STEPS: 5
+
+  BATCH_SIZE: 2
+  CNN_LR: 0.2
+  LR: 0.001
+  NUM_ITERATIONS: 100
+
+  WARMUP_STEPS: 1
+  LR_DECAY_NAME: "cosine"
+
+  NO_DECAY: ".*textual.(embedding|transformer).*(norm.*|bias)"
+  CLIP_GRAD_NORM: 10.0
+
