@@ -63,11 +63,10 @@ class AutoRegressiveBeamSearch:
             target = torch.tensor([[self.eos_index]]) # BOS bằng mấy
             with torch.no_grad():
                 output = textual.decode(target.to(self.device), memory)
-                logits = textual.generator(output.last_hidden_state[0,-1,:])
-                # logits = textual.generator(output.last_hidden_state)
-            print("aaa: ",output.last_hidden_state[0,-1,:].shape)
+                logits = textual.generator(output.last_hidden_state)
             scaled_logits = torch.log_softmax(logits[None,:], dim=1).cpu().squeeze(0) # over vocab size 
             weights, candidates = torch.topk(input=scaled_logits, k=self.beam_size, largest=True)
+            print("carcualte result: ",scaled_logits + weights[0,-1,:][:,None])
             response_tracker = []  # for valid final sequence 
             sequence_tracker = []  # for current active sequence
             print(candidates)
@@ -80,19 +79,16 @@ class AutoRegressiveBeamSearch:
             keep_generating = True 
             while keep_generating:
                 input_batch = torch.vstack(sequence_tracker)
-                # print(input_batch.shape)
                 with torch.no_grad():
                     input_memory = memory.repeat(input_batch.shape[0], 1, 1)
-                    # print("input_memory: ",input_memory.shape)
-                    # input_memory = memory
                     output = textual.decode(input_batch.to(self.device), input_memory)
-                    logits = textual.generator(output.last_hidden_state[0,-1:])
+                    logits = textual.generator(output.last_hidden_state)
  
                 scaled_logits = torch.log_softmax(logits, dim=1).cpu()
                 # bị cắt
                 length = input_batch.shape[1] # input_batch
                 vocab_size = scaled_logits.shape[1] # scaled_logits
-                weighted_logits = (scaled_logits + weights[:, None]) / length ** self.alpha  
+                weighted_logits = (scaled_logits + weights[0,-1,:][:, None]) / length ** self.alpha  
                 weights, candidates = torch.topk(torch.flatten(weighted_logits), k=self.beam_size, largest=True) # beam_width
                 weights = weights * length ** self.alpha  # denormalize
 
