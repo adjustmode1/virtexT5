@@ -66,53 +66,59 @@ class AutoRegressiveBeamSearch:
                 logits = textual.generator(output.last_hidden_state)
             scaled_logits = torch.log_softmax(logits[None,:], dim=1).cpu().squeeze(0) # over vocab size 
             weights, candidates = torch.topk(input=scaled_logits, k=self.beam_size, largest=True)
-            print("carcualte result: ",scaled_logits + weights[0,-1,:][:,None])
             response_tracker = []  # for valid final sequence 
             sequence_tracker = []  # for current active sequence
             print(candidates)
-            for idx in candidates:
+            for idx in candidates[0][0]:
                 print("idx: ",idx)
                 option = torch.tensor([[idx]])  # a new option into the search tree 
                 sequence = torch.cat([target, option], dim=1)
                 sequence_tracker.append(sequence)
-            
+            print("sequence_tracker: ",sequence_tracker)
             keep_generating = True 
             while keep_generating:
                 input_batch = torch.vstack(sequence_tracker)
-                with torch.no_grad():
-                    input_memory = memory.repeat(input_batch.shape[0], 1, 1)
-                    output = textual.decode(input_batch.to(self.device), input_memory)
-                    logits = textual.generator(output.last_hidden_state)
+                print("input_batch: ",input_batch)
+                for x in input_batch:
+                  print("element:",torch.tensor([[x[-1]]]))
+                  with torch.no_grad():
+                      input_memory = memory.repeat(1, 1, 1)
+                      output = textual.decode(torch.tensor([[x[-1]]]).to(self.device), input_memory)
+                      logits = textual.generator(output.last_hidden_state)    
  
-                scaled_logits = torch.log_softmax(logits, dim=1).cpu()
-                # bị cắt
-                length = input_batch.shape[1] # input_batch
-                vocab_size = scaled_logits.shape[1] # scaled_logits
-                weighted_logits = (scaled_logits + weights[0,-1,:][:, None]) / length ** self.alpha  
-                weights, candidates = torch.topk(torch.flatten(weighted_logits), k=self.beam_size, largest=True) # beam_width
-                weights = weights * length ** self.alpha  # denormalize
-
-                weights_tmp = []
-                sequence_tmp = []
-                for idx, pos in enumerate(candidates):
-                    row = torch.div(pos, vocab_size, rounding_mode='floor') # get relative position over nb_sequences 
-                    col = pos % vocab_size  # get relative position over vocab_size 
-                    sequence = torch.cat([sequence_tracker[row], torch.tensor([[col]])], dim=1)
-                    if col == self.eos_index:
-                        flattened_sequence = torch.flatten(sequence).tolist()
-                        sequence_score = weights[idx] / len(flattened_sequence) ** self.alpha
-                        response_tracker.append((flattened_sequence, sequence_score))  # a sentence was built ##### response_tracker
-                        if len(response_tracker) == self.beam_size:
-                            keep_generating = False 
-                            break  # end the for loop over candidates
-                    elif sequence.shape[1] < self.max_steps - 1:
-                        weights_tmp.append(weights[row])
-                        sequence_tmp.append(sequence)
-                # end for loop over candidates ...!
-                if len(sequence_tmp) == 0: 
-                    keep_generating = False 
-                else:               
-                    weights = torch.tensor(weights_tmp)
-                    sequence_tracker = sequence_tmp
+                  scaled_logits = torch.log_softmax(logits[None,:], dim=1).cpu().squeeze(0)
+                  # bị cắt
+                  length = input_batch.shape[1] # input_batch
+                  vocab_size = scaled_logits.shape[1] # scaled_logits
+                  print("scaled_logits",scaled_logits.shape)
+                  print("weight: ",weights.shape)
+                  weighted_logits = (scaled_logits + weights[0,-1,:][:, None]) / length ** self.alpha  
+                  weights, candidates = torch.topk(input=weighted_logits, k=self.beam_size, largest=True) # beam_width
+                  weights = weights * length ** self.alpha  # denormalize
+                  print("weights",weights.shape)
+                  weights_tmp = []
+                  sequence_tmp = []
+                  print("result:",candidates)
+                  for idx, pos in enumerate(candidates):
+                      row = torch.div(pos, vocab_size, rounding_mode='floor') # get relative position over nb_sequences 
+                      col = pos % vocab_size  # get relative position over vocab_size 
+                      sequence = torch.cat([sequence_tracker[row], torch.tensor([[col]])], dim=1)
+                      if col == self.eos_index:
+                          flattened_sequence = torch.flatten(sequence).tolist()
+                          sequence_score = weights[idx] / len(flattened_sequence) ** self.alpha
+                          response_tracker.append((flattened_sequence, sequence_score))  # a sentence was built ##### response_tracker
+                          if len(response_tracker) == self.beam_size:
+                              keep_generating = False 
+                              break  # end the for loop over candidates
+                      elif sequence.shape[1] < self.max_steps - 1:
+                          weights_tmp.append(weights[row])
+                          sequence_tmp.append(sequence)
+                  # end for loop over candidates ...!
+                  if len(sequence_tmp) == 0: 
+                      keep_generating = False 
+                      break
+                  else:               
+                      weights = torch.tensor(weights_tmp)
+                      sequence_tracker = sequence_tmp
             return response_tracker
         # end while search loop ...! 
